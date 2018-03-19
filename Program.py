@@ -51,11 +51,8 @@ import pandas as pd
 
 # 连接线下数据库
 client = MongoClient('127.0.0.1', 27017)
-# 选择db(stock_price_us)下的collection(AAPL_sec_col)
-# my_db = client.stock_price_us_sec
-# my_db = client.HeadTimestamp
-# my_db = client.stock_price_us_day
-my_db = client.option_data_us_tick
+my_db = client.option_data_us_mins
+
 
 def SetupLogger():
     if not os.path.exists("log"):
@@ -932,19 +929,21 @@ class TestApp(TestWrapper, TestClient):
         print("HistoricalData. ", reqId, " Date:", bar.date, "Open:", bar.open,
               "High:", bar.high, "Low:", bar.low, "Close:", bar.close, "Volume:", bar.volume,
               "Count:", bar.barCount, "WAP:", bar.average)
-        stock_code = stock_code_map[reqId]
+        index = reqId // 100000
+        option_code = self.option_code_map[index]
         date = datetime.datetime.strptime(bar.date,'%Y%m%d %H:%M:%S')     #day 已下数据使用
         # date = datetime.datetime.strptime(bar.date, '%Y%m%d')              #day（含）以上数据使用
 
-        my_db[stock_code].ensure_index([('date', ASCENDING), ('stock_code', ASCENDING)])
+        stock_code = option_code.split()[0]
+
         # 定义更新主键，若主键存在则更新，不存在则插入
-        update_key = {'date': date, 'stock_code': stock_code}
+        update_key = {'date': date, 'option_code': option_code}
         # 定义更新内容
-        update_item = {'Open': bar.open, 'High': bar.high, 'Low': bar.low, 'Close': bar.close, 'Volume': bar.volume,
-                       'Count': bar.barCount, 'WAP': bar.average, 'update_time': datetime.datetime.now(),
-                       'date': date, 'stock_code': stock_code}
+        update_item = {'option_code': option_code, 'date': date, 'Open': bar.open, 'High': bar.high, 'Low': bar.low,
+                       'Close': bar.close, 'Volume': bar.volume, 'Count': bar.barCount, 'WAP': bar.average,
+                       'update_time': datetime.datetime.now()}
         # 执行更新操作
-        my_db[stock_code].update(update_key, {'$set': update_item}, upsert=True)
+        my_db[stock_code].update_one(update_key, {'$set': update_item}, upsert=True)
 
     # ! [historicaldata]
 
@@ -953,6 +952,7 @@ class TestApp(TestWrapper, TestClient):
     def historicalDataEnd(self, reqId: int, start: str, end: str):
         super().historicalDataEnd(reqId, start, end)
         print("HistoricalDataEnd ", reqId, "from", start, "to", end)
+        self.opt_req_next_time = True
     # ! [historicaldataend]
 
     @iswrapper
@@ -1808,7 +1808,7 @@ def main():
     # cmdLineParser.add_option("-c", action="store_True", dest="use_cache", default = False, help = "use the cache")
     # cmdLineParser.add_option("-f", action="store", type="string", dest="file", default="", help="the input file")
     cmdLineParser.add_argument("-p", "--port", action="store", type=int,
-                               dest="port", default=4001, help="The TCP port to use")
+                               dest="port", default=4002, help="The TCP port to use")
     cmdLineParser.add_argument("-C", "--global-cancel", action="store_true",
                                dest="global_cancel", default=False,
                                help="whether to trigger a globalCancel req")
