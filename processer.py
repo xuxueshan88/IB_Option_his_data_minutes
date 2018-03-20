@@ -7,6 +7,7 @@
 # @Software: PyCharm
 
 import time
+import random
 from threading import Thread
 from ContractSamples import ContractSamples
 from date_list import *
@@ -24,6 +25,7 @@ class Processer(Thread):
         super().__init__()
         self.client = client
         self.stock_code_map = stock_code_map
+        self.id_continue = None
 
     def run(self):
         if self.client.started:
@@ -120,7 +122,9 @@ class Processer(Thread):
         # self.client.reqHistoricalTicks(0, ContractSamples.OptionWithLocalSymbol("AAPL  180420C00180000"),
         #                         "20171124 09:30:00", "", 1000, "TRADES", 1, True, [])
         # self.opt_tick_req_single_code(0, "AAPL  180420C00180000", datetime.datetime(2017,11,22,9,30))
-        self.client.reqHeadTimeStamp(1, ContractSamples.OptionWithLocalSymbol("AAPL  190118C00135000"), "TRADES", 0, 1)
+        # self.client.reqHeadTimeStamp(1, ContractSamples.OptionWithLocalSymbol("AAPL  190118C00135000"), "TRADES", 0, 1)
+        self.client.reqHistoricalData(1, ContractSamples.OptionWithLocalSymbol("AAPL  180420C00180000"),"20180319 23:59:59",
+                                      "5 D", "1 min", "TRADES", 1, 1, False, [])
 
         # self.client.reqMktData(1000, ContractSamples.OptionWithLocalSymbol("AAPL  180420C00180000"), "100,101,104,106,233,236,258", False, False, [])
         # ! [reqsecdefoptparams]
@@ -166,7 +170,8 @@ class Processer(Thread):
     def option_minutes_req(self):
         client = MongoClient('127.0.0.1', 27017)
         my_db = client.option_data_us_mins
-        index_continue = -1
+        index_continue = 28
+        self.id_continue = 13
         if index_continue == -1:
             for index in self.stock_code_map.keys():
                 if self.client.process_done:
@@ -175,7 +180,7 @@ class Processer(Thread):
                     stock_code = self.stock_code_map[index]
                     my_db[stock_code].create_index([('date', ASCENDING), ('option_code', ASCENDING)])
                     self.client.reqContractDetails(index, ContractSamples.OptionForQuery(stock_code))
-                    time.sleep(15)
+                    time.sleep(30)
                     print('Asked for ', str(stock_code))
 
             while not self.client.req_opt_contract_end and not self.client.process_done:
@@ -185,7 +190,8 @@ class Processer(Thread):
         else:
             temp = pd.read_csv('option_code_map.csv')
             self.client.option_code_map = temp['option_code'].values.tolist()
-
+        if index_continue < 0:
+            index_continue = 0
         option_code_map = self.client.option_code_map
         for index in range(index_continue, len(option_code_map)):
             if self.client.process_done:
@@ -198,7 +204,7 @@ class Processer(Thread):
                     else:
                         option_code_headTime = 20171122
                     self.client.opt_req_next_code = False
-                    queryTime = datetime.datetime(2018, 3, 16, 16, 1)
+                    queryTime = datetime.datetime(2018, 3, 16, 23, 59, 59)
                     if option_code in option_code_jump.keys():
                         queryTime = datetime.datetime.strptime(option_code_jump[option_code],"%Y%m%d %H:%M:%S")
                     self.opt_mins_req_single_code(index, option_code, queryTime, option_code_headTime)
@@ -207,39 +213,31 @@ class Processer(Thread):
 
     def opt_mins_req_single_code(self, index, option_code, query_Time, option_code_headTime):
         queryTime = query_Time
-        # headTime = option_code_headTime
-        headTime = 20161122
+        headTime = option_code_headTime
         opt_req_next_code = False
-        order_id = index * 100000 + 1
+        order_id = index * 100000 + self.id_continue
+        if self.id_continue > 1:
+            queryTime -= timedelta(days = 7 * (self.id_continue - 1))
+            self.id_continue = 1
         while not opt_req_next_code and not self.client.process_done:
             time_recorder = 0
             self.client.reqHistoricalData(order_id, ContractSamples.OptionWithLocalSymbol(option_code),
                                            queryTime.strftime("%Y%m%d %H:%M:%S"), "5 D", "1 min", "TRADES", 1, 1, False, [])
-            time.sleep(1)
+            time.sleep(random.randint(8, 15))
+            self.client.queryTime = queryTime.strftime("%Y%m%d %H:%M:%S")
             while not self.client.process_done:
                 if self.client.opt_req_next_time:
-                    if queryTime.isoweekday() == 1:
-                        queryTime -= timedelta(days=3)
-                    else:
-                        queryTime -= timedelta(days=7)
+                    queryTime -= timedelta(days=7)
                     queryTime = datetime.datetime.combine(queryTime.date(),query_Time.time())
                     order_id += 1
-                    print(queryTime)
                     self.client.opt_req_next_time = False
                     print('next time...............')
                     print(datetime.datetime.now())
                     break
-                # elif self.client.opt_req_continue:
-                #     queryTime = self.client.lasttime
-                #     order_id += 1
-                #     self.client.opt_req_continue = False
-                #     print('continue...............')
-                #     print(datetime.datetime.now())
-                #     break
                 else:
                     time.sleep(1)
                     time_recorder += 1
-                    if time_recorder > 180:  #3分钟内没有返回内容，则跳过
+                    if time_recorder > 120:  #2分钟内没有返回内容，则跳过
                         fw = open('data.txt', 'a')
                         fw.write(option_code+', '+str(order_id)+', '+str(queryTime)+'\n')
                         fw.close()

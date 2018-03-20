@@ -232,6 +232,7 @@ class TestApp(TestWrapper, TestClient):
         self.opt_req_continue = False
         self.lasttime = None
         self.order_id = 0
+        self.queryTime = ''
 
 
     def dumpTestCoverageSituation(self):
@@ -332,6 +333,12 @@ class TestApp(TestWrapper, TestClient):
     def error(self, reqId: TickerId, errorCode: int, errorString: str):
         super().error(reqId, errorCode, errorString)
         print("Error. Id: ", reqId, " Code: ", errorCode, " Msg: ", errorString)
+
+        if len(errorString.split(':'))==3 and errorString.split(':')[1] == 'HMDS query returned no data':
+            fw = open('data_err.txt', 'a')
+            fw.write(str(reqId) + ', ' + self.queryTime + ', ' + errorString.split(':')[2] + '\n')
+            fw.close()
+            self.opt_req_next_time = True
 
     # ! [error] self.reqId2nErr[reqId] += 1
 
