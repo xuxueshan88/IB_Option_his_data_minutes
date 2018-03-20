@@ -228,7 +228,7 @@ class TestApp(TestWrapper, TestClient):
         self.process_done = False
         self.option_code_map = []
         self.req_opt_contract_end = False
-        self.opt_req_next_time = False
+        self.opt_req_next_code = False
         self.opt_req_continue = False
         self.lasttime = None
         self.order_id = 0
@@ -338,7 +338,7 @@ class TestApp(TestWrapper, TestClient):
             fw = open('data_err.txt', 'a')
             fw.write(str(reqId) + ', ' + self.queryTime + ', ' + errorString.split(':')[2] + '\n')
             fw.close()
-            self.opt_req_next_time = True
+            self.opt_req_next_code = True
 
     # ! [error] self.reqId2nErr[reqId] += 1
 
@@ -959,7 +959,7 @@ class TestApp(TestWrapper, TestClient):
     def historicalDataEnd(self, reqId: int, start: str, end: str):
         super().historicalDataEnd(reqId, start, end)
         print("HistoricalDataEnd ", reqId, "from", start, "to", end)
-        self.opt_req_next_time = True
+        self.opt_req_next_code = True
     # ! [historicaldataend]
 
     @iswrapper
@@ -1815,7 +1815,7 @@ def main():
     # cmdLineParser.add_option("-c", action="store_True", dest="use_cache", default = False, help = "use the cache")
     # cmdLineParser.add_option("-f", action="store", type="string", dest="file", default="", help="the input file")
     cmdLineParser.add_argument("-p", "--port", action="store", type=int,
-                               dest="port", default=4002, help="The TCP port to use")
+                               dest="port", default=4001, help="The TCP port to use")
     cmdLineParser.add_argument("-C", "--global-cancel", action="store_true",
                                dest="global_cancel", default=False,
                                help="whether to trigger a globalCancel req")
