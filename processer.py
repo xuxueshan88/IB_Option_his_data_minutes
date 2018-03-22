@@ -168,7 +168,7 @@ class Processer(Thread):
     def option_minutes_req(self):
         client = MongoClient('127.0.0.1', 27017)
         my_db = client.option_data_us_mins
-        index_continue = 2388
+        index_continue = 2647
         time_continue = 0
         if index_continue == -1:
             for index in self.stock_code_map.keys():
